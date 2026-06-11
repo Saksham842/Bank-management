@@ -378,6 +378,91 @@ def recommend_budgets(req: BudgetRecommendRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── Loan Analysis Models ─────────────────────────────────────────────────
+
+class LoanAnalysisRequest(BaseModel):
+    loans: List[dict]
+    monthly_income: Optional[float] = None
+
+class LoanAnalysisResponse(BaseModel):
+    dti_ratio: Optional[float] = None
+    affordability: str
+    total_emi_burden: float
+    risk_score: float
+    recommendations: list
+
+@app.post("/loans/analyze", response_model=LoanAnalysisResponse)
+def analyze_loans(req: LoanAnalysisRequest):
+    try:
+        if not req.loans:
+            return LoanAnalysisResponse(dti_ratio=None, affordability="unknown", total_emi_burden=0, risk_score=0, recommendations=["No loans to analyze."])
+
+        total_emi = sum(
+            l.get('emi', 0) or
+            (l['principal'] * (l['annualRate'] / 12 / 100) * pow(1 + l['annualRate'] / 12 / 100, l['tenureMonths']) /
+             (pow(1 + l['annualRate'] / 12 / 100, l['tenureMonths']) - 1)
+             if l.get('principal') and l.get('annualRate') and l.get('tenureMonths') else 0)
+            for l in req.loans
+        )
+
+        active = [l for l in req.loans if l.get('status') == 'active']
+        total_principal = sum(l.get('principal', 0) for l in active)
+        total_remaining = 0
+        for l in active:
+            p = l.get('principal', 0)
+            r = l.get('annualRate', 0) / 12 / 100
+            n = l.get('tenureMonths', 1)
+            paid = l.get('paidEmis', 0)
+            emi = l.get('emi', 0) or (p * r * pow(1 + r, n) / (pow(1 + r, n) - 1))
+            bal = p
+            for _ in range(min(paid, n)):
+                bal -= (emi - bal * r)
+            total_remaining += max(0, bal)
+
+        dti = None
+        if req.monthly_income and req.monthly_income > 0:
+            dti = round(total_emi / req.monthly_income * 100, 1)
+
+        if dti is None:
+            affordability = "unknown"
+        elif dti < 20:
+            affordability = "low_burden"
+        elif dti < 36:
+            affordability = "manageable"
+        elif dti < 50:
+            affordability = "high_burden"
+        else:
+            affordability = "critical"
+
+        risk_score = 0
+        if dti is not None:
+            risk_score = min(100, dti * 2)
+        risk_score += max(0, len(active) - 2) * 5
+        risk_score = min(100, risk_score)
+
+        recs = []
+        if dti and dti > 36:
+            recs.append(f"Your debt-to-income ratio is {dti}%. Consider loan consolidation to reduce monthly burden.")
+        if len(active) > 3:
+            recs.append("You have multiple active loans. Prioritize high-interest loans for early repayment.")
+        if any(l.get('annualRate', 0) > 14 for l in active):
+            high = [l.get('name', 'Unknown') for l in active if l.get('annualRate', 0) > 14]
+            recs.append(f"High interest loans detected: {', '.join(high)}. Consider refinancing.")
+        if total_remaining > 0:
+            recs.append(f"Total outstanding balance is ₹{total_remaining:,.0f}. Aim to pay off 20% early to save on interest.")
+        if not recs:
+            recs.append("Your loan portfolio looks healthy. Continue with regular EMI payments.")
+
+        return LoanAnalysisResponse(
+            dti_ratio=dti,
+            affordability=affordability,
+            total_emi_burden=round(total_emi, 2),
+            risk_score=round(risk_score, 1),
+            recommendations=recs
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == '__main__':
     import uvicorn
     port = int(os.environ.get('ML_PORT', 5050))
