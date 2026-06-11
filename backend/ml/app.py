@@ -378,6 +378,85 @@ def recommend_budgets(req: BudgetRecommendRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── Portfolio Analysis Models ────────────────────────────────────────────
+
+class PortfolioAnalysisRequest(BaseModel):
+    holdings: List[dict]
+
+class PortfolioAnalysisResponse(BaseModel):
+    diversification_score: float
+    risk_level: str
+    sector_concentration: list
+    recommendations: list
+    sharpe_ratio_estimate: Optional[float] = None
+
+@app.post("/portfolio/analyze", response_model=PortfolioAnalysisResponse)
+def analyze_portfolio(req: PortfolioAnalysisRequest):
+    try:
+        if not req.holdings:
+            return PortfolioAnalysisResponse(
+                diversification_score=0, risk_level="unknown",
+                sector_concentration=[], recommendations=["Add holdings to analyze your portfolio."]
+            )
+
+        total = sum(h.get('currentValue', h.get('quantity', 0) * h.get('currentPrice', 0)) for h in req.holdings)
+        if total == 0:
+            return PortfolioAnalysisResponse(
+                diversification_score=0, risk_level="unknown",
+                sector_concentration=[], recommendations=["No portfolio value detected."]
+            )
+
+        # Sector concentration
+        sector_map = {}
+        for h in req.holdings:
+            sec = h.get('sector', 'Other')
+            val = h.get('currentValue', h.get('quantity', 0) * h.get('currentPrice', 0))
+            sector_map[sec] = sector_map.get(sec, 0) + val
+
+        sector_concentration = sorted(
+            [{"sector": k, "value": round(v, 2), "pct": round(v / total * 100, 1)} for k, v in sector_map.items()],
+            key=lambda x: -x["pct"]
+        )
+
+        # HHI (Herfindahl-Hirschman Index) for concentration
+        hhi = sum((v / total * 100) ** 2 for v in sector_map.values())
+        diversification_score = round(max(0, min(100, 100 - hhi / 2)), 1)
+
+        # Risk level
+        if hhi > 3000: risk_level = "very_high"
+        elif hhi > 2000: risk_level = "high"
+        elif hhi > 1200: risk_level = "moderate"
+        elif hhi > 600: risk_level = "low"
+        else: risk_level = "very_low"
+
+        # Recommendations
+        recs = []
+        if len(req.holdings) < 3:
+            recs.append("Consider diversifying across at least 3-5 different stocks to reduce single-stock risk.")
+        if any(s["pct"] > 40 for s in sector_concentration):
+            dominant = [s for s in sector_concentration if s["pct"] > 40][0]
+            recs.append(f"Your {dominant['sector']} sector allocation ({dominant['pct']}%) is very high. Consider balancing into other sectors.")
+        if risk_level == "very_high":
+            recs.append("Portfolio is heavily concentrated. Rebalancing is strongly recommended to reduce risk.")
+        if not recs:
+            recs.append("Your portfolio is well-diversified. Maintain current allocation with periodic rebalancing.")
+        recs.append("Review holdings quarterly and rebalance when any sector exceeds 30% of total.")
+
+        # Rough Sharpe estimate from P&L data
+        pnl_values = [h.get('pnl', h.get('pnlPct', 0)) for h in req.holdings]
+        avg_return = sum(pnl_values) / len(pnl_values) if pnl_values else 0
+        sharpe = round(avg_return / (max(np.std(pnl_values), 0.01)), 2) if len(pnl_values) > 1 else None
+
+        return PortfolioAnalysisResponse(
+            diversification_score=diversification_score,
+            risk_level=risk_level,
+            sector_concentration=sector_concentration,
+            recommendations=recs,
+            sharpe_ratio_estimate=sharpe
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == '__main__':
     import uvicorn
     port = int(os.environ.get('ML_PORT', 5050))
