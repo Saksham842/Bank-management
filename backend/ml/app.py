@@ -302,6 +302,81 @@ def predict_spending(req: PredictRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── Recurring Detection Model ────────────────────────────────────────────
+
+class RecurringDetectionRequest(BaseModel):
+    transactions: List[dict]
+
+class RecurringDetectionResponse(BaseModel):
+    recurring_groups: list
+    detected_count: int
+
+@app.post("/detect-recurring", response_model=RecurringDetectionResponse)
+def detect_recurring_ml(req: RecurringDetectionRequest):
+    try:
+        if not req.transactions or len(req.transactions) < 2:
+            return RecurringDetectionResponse(recurring_groups=[], detected_count=0)
+
+        from collections import defaultdict
+        import math
+
+        groups = defaultdict(list)
+        for tx in req.transactions:
+            desc = (tx.get('description') or tx.get('category') or '').lower().strip()[:30]
+            if desc:
+                groups[desc].append(tx)
+
+        recurring = []
+        for desc, group in groups.items():
+            if len(group) < 2: continue
+
+            dates = sorted([d["date"] for d in group])
+            amounts = [d["amount"] for d in group]
+            intervals = [(dates[i] - dates[i-1]).total_seconds() / 86400 for i in range(1, len(dates))]
+
+            avg_interval = sum(intervals) / len(intervals) if intervals else 0
+            std_dev = math.sqrt(sum((i - avg_interval)**2 for i in intervals) / len(intervals)) if intervals else 0
+            regularity = std_dev / (avg_interval or 1)
+
+            if regularity < 0.3 and avg_interval <= 35:
+                avg_amount = sum(amounts) / len(amounts)
+                from datetime import datetime, timedelta
+
+                cycle = 'monthly'
+                if avg_interval <= 10: cycle = 'weekly'
+                elif avg_interval <= 45: cycle = 'monthly'
+                elif avg_interval <= 100: cycle = 'quarterly'
+                else: cycle = 'annual'
+
+                last_dt = max(dates)
+                if isinstance(last_dt, str):
+                    last_dt = datetime.fromisoformat(last_dt)
+
+                if cycle == 'weekly': next_dt = last_dt + timedelta(days=7)
+                elif cycle == 'monthly': next_dt = last_dt + timedelta(days=30)
+                elif cycle == 'quarterly': next_dt = last_dt + timedelta(days=90)
+                else: next_dt = last_dt + timedelta(days=365)
+
+                recurring.append({
+                    "merchant": group[0].get('description', desc),
+                    "category": group[0].get('category', 'Other'),
+                    "avg_amount": round(avg_amount, 2),
+                    "confidence": round(1 - regularity, 3),
+                    "occurrences": len(group),
+                    "avg_interval_days": round(avg_interval, 1),
+                    "suggested_cycle": cycle,
+                    "next_billing": next_dt.strftime('%Y-%m-%d'),
+                    "recent_amounts": [round(a, 2) for a in amounts[-5:]],
+                })
+
+        recurring.sort(key=lambda r: -r['confidence'])
+        return RecurringDetectionResponse(
+            recurring_groups=recurring,
+            detected_count=len(recurring)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ─── Budget Recommendation Models ─────────────────────────────────────────
 
 class BudgetRecommendRequest(BaseModel):
