@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sakshamhans301_db_user:Abcd%401234@cluster0.btv7osv.mongodb.net/adv-backend';
+const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
   console.error('ERROR: MONGO_URI is not defined.');
