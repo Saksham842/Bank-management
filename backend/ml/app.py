@@ -453,6 +453,163 @@ def recommend_budgets(req: BudgetRecommendRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── Forecast / Monte Carlo Models ───────────────────────────────────────
+
+class ForecastRequest(BaseModel):
+    months: int = 12
+    avg_income: Optional[float] = None
+    avg_expense: Optional[float] = None
+    current_balance: Optional[float] = None
+
+class ForecastResponse(BaseModel):
+    predictions: List[dict]
+    summary: dict
+
+@app.post("/forecast/predict", response_model=ForecastResponse)
+def forecast_predict(req: ForecastRequest):
+    try:
+        months = max(1, min(req.months, 60))
+        avg_inc = req.avg_income or 50000
+        avg_exp = req.avg_expense or 35000
+        balance = req.current_balance or 0
+
+        predictions = []
+        running = balance
+        for i in range(months):
+            # Simple seasonal model: add some variation
+            season = 1 + 0.1 * np.sin(2 * np.pi * (i % 12) / 12)
+            inc = avg_inc * season
+            exp = avg_exp * (1 + 0.05 * np.sin(2 * np.pi * ((i + 6) % 12) / 12))
+            running += inc - exp
+            predictions.append({
+                "month": i + 1,
+                "income": round(inc, 2),
+                "expense": round(exp, 2),
+                "balance": round(running, 2)
+            })
+
+        summary = {
+            "starting_balance": round(balance, 2),
+            "projected_balance": round(running, 2),
+            "avg_income": round(avg_inc, 2),
+            "avg_expense": round(avg_exp, 2),
+            "months_projected": months,
+            "savings_rate": round((avg_inc - avg_exp) / avg_inc * 100, 1) if avg_inc > 0 else 0
+        }
+        return ForecastResponse(predictions=predictions, summary=summary)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class MonteCarloRequest(BaseModel):
+    target_amount: float = 0
+    months: int = 12
+    simulations: int = 500
+    monthly_contribution: float = 0
+    current_balance: float = 0
+    expected_return: float = 8.0
+    volatility: float = 15.0
+
+class MonteCarloResponse(BaseModel):
+    bands: List[dict]
+    probability: float
+    median_final: float
+    target_amount: float
+    simulations_run: int
+
+@app.post("/forecast/monte-carlo", response_model=MonteCarloResponse)
+def monte_carlo_ml(req: MonteCarloRequest):
+    try:
+        num_sims = min(req.simulations, 2000)
+        num_months = max(1, min(req.months, 120))
+        target = req.target_amount
+        contribution = req.monthly_contribution
+        balance = req.current_balance
+        monthly_return = req.expected_return / 100 / 12
+        monthly_vol = req.volatility / 100 / np.sqrt(12)
+
+        paths = np.zeros((num_sims, num_months))
+        successes = 0
+
+        for s in range(num_sims):
+            path_balance = balance
+            for m in range(num_months):
+                rand_return = monthly_return + monthly_vol * np.random.randn()
+                path_balance = path_balance * (1 + rand_return) + contribution
+                paths[s, m] = max(0, path_balance)
+            if path_balance >= target:
+                successes += 1
+
+        bands = []
+        for m in range(num_months):
+            sorted_vals = np.sort(paths[:, m])
+            bands.append({
+                "month": m + 1,
+                "p10": round(float(sorted_vals[int(num_sims * 0.1)]), 2),
+                "p25": round(float(sorted_vals[int(num_sims * 0.25)]), 2),
+                "p50": round(float(sorted_vals[int(num_sims * 0.5)]), 2),
+                "p75": round(float(sorted_vals[int(num_sims * 0.75)]), 2),
+                "p90": round(float(sorted_vals[int(num_sims * 0.9)]), 2),
+            })
+
+        return MonteCarloResponse(
+            bands=bands,
+            probability=round(successes / num_sims * 100, 1),
+            median_final=round(float(np.median(paths[:, -1])), 2),
+            target_amount=target,
+            simulations_run=num_sims
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class FIRequest(BaseModel):
+    monthly_expense: float
+    current_savings: float = 0
+    monthly_savings: float = 0
+    expected_return: float = 8.0
+
+class FIResponse(BaseModel):
+    fi_number: float
+    years_to_fi: float
+    milestones: list
+    progress_pct: float
+
+@app.post("/forecast/fire", response_model=FIResponse)
+def fire_calculator(req: FIRequest):
+    try:
+        withdrawal_rate = 0.04
+        monthly_exp = max(1, req.monthly_expense)
+        fi_number = monthly_exp * 12 / withdrawal_rate
+        savings = req.current_savings
+        monthly_save = req.monthly_savings
+        annual_return = req.expected_return / 100
+
+        if monthly_save > 0 and fi_number > savings:
+            years = 0
+            while savings < fi_number and years < 100:
+                savings = savings * (1 + annual_return) + monthly_save * 12
+                years += 1
+            years_to_fi = years
+        else:
+            years_to_fi = 0 if savings >= fi_number else 99
+
+        milestones = [
+            {"label": "25% FI", "amount": round(fi_number * 0.25, 2)},
+            {"label": "50% FI", "amount": round(fi_number * 0.5, 2)},
+            {"label": "75% FI", "amount": round(fi_number * 0.75, 2)},
+            {"label": "100% FI", "amount": round(fi_number, 2)},
+        ]
+
+        progress_pct = round(min(100, req.current_savings / fi_number * 100), 1) if fi_number > 0 else 0
+
+        return FIResponse(
+            fi_number=round(fi_number, 2),
+            years_to_fi=round(years_to_fi, 1),
+            milestones=milestones,
+            progress_pct=progress_pct
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == '__main__':
     import uvicorn
     port = int(os.environ.get('ML_PORT', 5050))
