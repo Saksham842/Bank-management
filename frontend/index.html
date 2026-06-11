@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧾</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Manage your personal and business budgets with Ledger Pro. Features spend forecasting, receipt text parsing, and zero-fee local ML auto-categorization." />
+    <meta name="theme-color" content="#7c3aed" />
+    <title>LedgerPro — AI Financial Intelligence Platform</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Vite / PostCSS Tailwind handles utility classes via src/index.css -->
+
+    <!-- Style Overrides -->
+    <style>
+      :root {
+        --color-space-black: #060912;
+        --color-violet: #7C3AED;
+        --color-indigo: #4F46E5;
+        --color-cyan: #06B6D4;
+      }
+      
+      body {
+        background-color: var(--color-space-black);
+        color: #f3f4f6;
+        font-family: 'Inter', sans-serif;
+        overflow-x: hidden;
+      }
+
+      /* Noise Overlay (3% opacity) */
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        pointer-events: none;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      }
+
+      /* Glass Panels */
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.04);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(124, 58, 237, 0.25);
+        box-shadow: 0 0 30px rgba(124, 58, 237, 0.15);
+      }
+
+      .glass-panel:hover {
+        box-shadow: 0 0 40px rgba(124, 58, 237, 0.25);
+        border-color: rgba(6, 182, 212, 0.4);
+        transform: translateY(-2px);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* Custom Thin Violet Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(6, 9, 18, 0.95);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--color-violet);
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-cyan);
+      }
+
+      /* Shimmer text animation */
+      .shimmer-text {
+        background: linear-gradient(to right, #7C3AED, #4F46E5, #06B6D4, #7C3AED);
+        background-size: 200% auto;
+        color: transparent;
+        -webkit-background-clip: text;
+        background-clip: text;
+        animation: shine 4s linear infinite;
+      }
+      @keyframes shine {
+        to { background-position: 200% center; }
+      }
+    </style>
+
+    <!-- Non-Module CDNs (Libraries exposed as window globals) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/compromise@14.12.0/builds/compromise.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+    <script src="https://unpkg.com/brain.js@2.0.0-beta.2/dist/brain-browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.36/dist/lenis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body class="bg-spaceBlack text-slate-100 font-sans antialiased overflow-x-hidden">
+    <!-- Custom cursor container -->
+    <div id="cursor" class="custom-cursor hidden md:block"></div>
+    
+    <div id="root"></div>
+
+    <!-- Main React App module loader -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
