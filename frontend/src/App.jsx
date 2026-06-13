@@ -69,6 +69,7 @@ import { Transactions as ModularTransactions } from "./pages/Transactions";
 import { Reports as ModularReports } from "./pages/Reports";
 import { BudgetPage as ModularBudgetPage } from "./pages/Budget";
 import { Settings as ModularSettings } from "./pages/Settings";
+import { InsurancePage as ModularInsurancePage } from "./pages/Insurance";
 import { Login as ModularLogin } from "./pages/Auth/Login";
 import { Register as ModularRegister } from "./pages/Auth/Register";
 import { AppContext } from "./AppContext";
@@ -889,6 +890,7 @@ export function App() {
 											/>
 											<Route path="/analytics" element={<ModularReports />} />
 											<Route path="/goals" element={<ModularBudgetPage />} />
+											<Route path="/insurance" element={<ModularInsurancePage />} />
 											<Route path="/settings" element={<ModularSettings />} />
 											<Route path="*" element={<Navigate to="/dashboard" />} />
 										</Routes>
@@ -960,6 +962,7 @@ const Layout = ({ children }) => {
 		{ label: "Transactions", path: "/transactions", icon: Receipt },
 		{ label: "Analytics", path: "/analytics", icon: BarChart3 },
 		{ label: "Goals", path: "/goals", icon: Target },
+		{ label: "Insurance", path: "/insurance", icon: Shield },
 		{ label: "Settings", path: "/settings", icon: Settings },
 	];
 

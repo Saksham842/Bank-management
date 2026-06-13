@@ -9,6 +9,7 @@ const budgetRoutes = require('./routes/budgets.routes');
 const aiRoutes = require('./routes/ai.routes');
 const nlpRoutes = require('./routes/nlp.routes');
 const reportRoutes = require('./routes/reports.routes');
+const insuranceRoutes = require('./routes/insurance.routes');
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/budgets', budgetRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/nlp', nlpRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/insurance', insuranceRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', time: new Date() });
