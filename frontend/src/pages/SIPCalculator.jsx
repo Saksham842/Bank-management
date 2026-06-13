@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import {
   Calculator, TrendingUp, Target, PiggyBank, Plus, X,
-  ChevronRight, DollarSign, Calendar, BarChart3, Percent
+  ChevronRight, DollarSign, Calendar, BarChart3
 } from 'lucide-react';
 import {
   getGoals, createGoal, updateGoal, deleteGoal,
@@ -183,31 +183,20 @@ export const SIPCalculatorPage = () => {
               </motion.div>
 
               {sipResult && (
-                <>
-                  <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">Total Investment</div>
-                      <div className="text-2xl font-bold text-blue-400">{formatCurrency(sipResult.totalInvestment)}</div>
-                    </div>
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">Expected Returns</div>
-                      <div className="text-2xl font-bold text-amber-400">{formatCurrency(sipResult.expectedReturns)}</div>
-                    </div>
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">Final Corpus</div>
-                      <div className="text-2xl font-bold text-emerald-400">{formatCurrency(sipResult.finalCorpus)}</div>
-                    </div>
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">CAGR</div>
-                      <div className="text-2xl font-bold text-purple-400">{sipResult.returnRate}%</div>
-                    </div>
-                  </motion.div>
-                  <motion.div variants={item} className="bg-gray-700/50 rounded-lg p-3 text-sm text-gray-300 flex items-center justify-around">
-                    <span>Monthly: <strong className="text-white">{formatCurrency(sipResult.monthlyInvestment)}</strong></span>
-                    <span>Tenure: <strong className="text-white">{sipResult.tenureYears}y</strong></span>
-                    <span>Wealth Ratio: <strong className="text-emerald-400">{sipResult.finalCorpus > 0 ? ((sipResult.finalCorpus / sipResult.totalInvestment) * 100).toFixed(0) : 0}x</strong></span>
-                  </motion.div>
-                </>
+                <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                    <div className="text-gray-400 text-xs mb-1">Total Investment</div>
+                    <div className="text-2xl font-bold text-blue-400">{formatCurrency(sipResult.totalInvestment)}</div>
+                  </div>
+                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                    <div className="text-gray-400 text-xs mb-1">Expected Returns</div>
+                    <div className="text-2xl font-bold text-amber-400">{formatCurrency(sipResult.expectedReturns)}</div>
+                  </div>
+                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                    <div className="text-gray-400 text-xs mb-1">Final Corpus</div>
+                    <div className="text-2xl font-bold text-emerald-400">{formatCurrency(sipResult.finalCorpus)}</div>
+                  </div>
+                </motion.div>
               )}
 
               {sipResult?.yearlyBreakdown?.length > 0 && (
@@ -258,30 +247,20 @@ export const SIPCalculatorPage = () => {
               </motion.div>
 
               {lumpResult && (
-                <>
-                  <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">Investment</div>
-                      <div className="text-2xl font-bold text-blue-400">{formatCurrency(lumpResult.investment)}</div>
-                    </div>
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">Total Returns</div>
-                      <div className="text-2xl font-bold text-amber-400">{formatCurrency(lumpResult.totalReturns)}</div>
-                    </div>
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">Final Value</div>
-                      <div className="text-2xl font-bold text-emerald-400">{formatCurrency(lumpResult.finalValue)}</div>
-                    </div>
-                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                      <div className="text-gray-400 text-xs mb-1">CAGR</div>
-                      <div className="text-2xl font-bold text-purple-400">{lumpResult.returnRate}%</div>
-                    </div>
-                  </motion.div>
-                  <motion.div variants={item} className="bg-gray-700/50 rounded-lg p-3 text-sm text-gray-300 flex items-center justify-around">
-                    <span>Tenure: <strong className="text-white">{lumpResult.tenureYears}y</strong></span>
-                    <span>Growth Multiple: <strong className="text-emerald-400">{lumpResult.investment > 0 ? (lumpResult.finalValue / lumpResult.investment).toFixed(1) : 0}x</strong></span>
-                  </motion.div>
-                </>
+                <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                    <div className="text-gray-400 text-xs mb-1">Investment</div>
+                    <div className="text-2xl font-bold text-blue-400">{formatCurrency(lumpResult.investment)}</div>
+                  </div>
+                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                    <div className="text-gray-400 text-xs mb-1">Total Returns</div>
+                    <div className="text-2xl font-bold text-amber-400">{formatCurrency(lumpResult.totalReturns)}</div>
+                  </div>
+                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                    <div className="text-gray-400 text-xs mb-1">Final Value</div>
+                    <div className="text-2xl font-bold text-emerald-400">{formatCurrency(lumpResult.finalValue)}</div>
+                  </div>
+                </motion.div>
               )}
 
               {lumpResult?.yearlyBreakdown?.length > 0 && (
@@ -502,36 +481,6 @@ export const SIPCalculatorPage = () => {
                     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
                       <div className="text-gray-400 text-xs mb-1">Time Remaining</div>
                       <div className="text-xl font-bold text-purple-400">{goalResult.yearsRemaining}y</div>
-                    </div>
-                  </motion.div>
-
-                  <motion.div variants={item} className="bg-gray-800 rounded-xl p-5 border border-gray-700">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2"><Percent className="w-4 h-4 text-purple-400" /> Goal Simulator</h4>
-                    <p className="text-gray-400 text-xs mb-3">Adjust your monthly SIP to see how it impacts your goal timeline</p>
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <div className="flex-1 min-w-[200px]">
-                        <label className="text-gray-400 text-xs block mb-1">Monthly SIP: <strong className="text-white">{formatCurrency(goalResult.sipAmount)}</strong></label>
-                        <input type="range" min={Math.max(500, Math.round(goalResult.requiredSIP * 0.2 / 100) * 100)} max={Math.max(5000, Math.round(goalResult.requiredSIP * 3 / 100) * 100)} step={500}
-                          value={goalResult.sipAmount}
-                          onChange={e => {
-                            const newSip = parseInt(e.target.value);
-                            const cr = goalResult.cagr / 100;
-                            const mr = cr / 12;
-                            const months = Math.round(goalResult.yearsRemaining * 12);
-                            let corpus = 0;
-                            for (let m = 0; m < months; m++) corpus = corpus * (1 + mr) + newSip;
-                            corpus = Math.round(corpus);
-                            setGoalResult(g => ({ ...g, sipAmount: newSip, projectedCorpus: corpus, onTrack: corpus >= goalResult.inflationAdjustedTarget }));
-                          }}
-                          className="w-full accent-purple-600" />
-                      </div>
-                      <div className="text-right min-w-[120px]">
-                        <div className="text-xs text-gray-400">Projected</div>
-                        <div className={`text-lg font-bold ${goalResult.projectedCorpus >= goalResult.inflationAdjustedTarget ? 'text-emerald-400' : 'text-amber-400'}`}>{formatCurrency(goalResult.projectedCorpus)}</div>
-                        <div className={`text-xs ${goalResult.projectedCorpus >= goalResult.inflationAdjustedTarget ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {goalResult.projectedCorpus >= goalResult.inflationAdjustedTarget ? 'On Track' : `Short by ${formatCurrency(goalResult.inflationAdjustedTarget - goalResult.projectedCorpus)}`}
-                        </div>
-                      </div>
                     </div>
                   </motion.div>
                 </>
