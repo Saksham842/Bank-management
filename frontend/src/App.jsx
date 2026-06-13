@@ -41,6 +41,7 @@ import {
 	Menu,
 	RefreshCw,
 	Eye,
+	Repeat,
 } from "lucide-react";
 import { format, parseISO, differenceInDays, addDays, subDays } from "date-fns";
 import {
@@ -68,8 +69,9 @@ import { Dashboard as ModularDashboard } from "./pages/Dashboard";
 import { Transactions as ModularTransactions } from "./pages/Transactions";
 import { Reports as ModularReports } from "./pages/Reports";
 import { BudgetPage as ModularBudgetPage } from "./pages/Budget";
+import { SubscriptionsPage as ModularSubscriptionsPage } from "./pages/Subscriptions";
 import { Settings as ModularSettings } from "./pages/Settings";
-import { InsurancePage as ModularInsurancePage } from "./pages/Insurance";
+import { RetirementPage as ModularRetirementPage } from "./pages/Retirement";
 import { Login as ModularLogin } from "./pages/Auth/Login";
 import { Register as ModularRegister } from "./pages/Auth/Register";
 import { AppContext } from "./AppContext";
@@ -890,7 +892,7 @@ export function App() {
 											/>
 											<Route path="/analytics" element={<ModularReports />} />
 											<Route path="/goals" element={<ModularBudgetPage />} />
-											<Route path="/insurance" element={<ModularInsurancePage />} />
+											<Route path="/subscriptions" element={<ModularSubscriptionsPage />} />
 											<Route path="/settings" element={<ModularSettings />} />
 											<Route path="*" element={<Navigate to="/dashboard" />} />
 										</Routes>
@@ -962,7 +964,7 @@ const Layout = ({ children }) => {
 		{ label: "Transactions", path: "/transactions", icon: Receipt },
 		{ label: "Analytics", path: "/analytics", icon: BarChart3 },
 		{ label: "Goals", path: "/goals", icon: Target },
-		{ label: "Insurance", path: "/insurance", icon: Shield },
+		{ label: "Subscriptions", path: "/subscriptions", icon: Repeat },
 		{ label: "Settings", path: "/settings", icon: Settings },
 	];
 

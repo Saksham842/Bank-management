@@ -6,10 +6,11 @@ const authRoutes = require('./routes/auth.routes');
 const accountRoutes = require('./routes/accounts.routes');
 const txnRoutes = require('./routes/transactions.routes');
 const budgetRoutes = require('./routes/budgets.routes');
+const recurringRoutes = require('./routes/recurring.routes');
 const aiRoutes = require('./routes/ai.routes');
 const nlpRoutes = require('./routes/nlp.routes');
 const reportRoutes = require('./routes/reports.routes');
-const insuranceRoutes = require('./routes/insurance.routes');
+const retirementRoutes = require('./routes/retirement.routes');
 
 const app = express();
 
@@ -50,10 +51,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/transactions', txnRoutes);
 app.use('/api/budgets', budgetRoutes);
+app.use('/api/recurring', recurringRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/nlp', nlpRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/insurance', insuranceRoutes);
+app.use('/api/retirement', retirementRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', time: new Date() });
