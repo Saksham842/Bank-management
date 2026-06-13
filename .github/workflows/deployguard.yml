@@ -19,8 +19,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # We disabled cache: 'npm' here to prevent the action from crashing 
-          # due to the missing root lock file.
 
       - name: Install Dependencies
         working-directory: frontend
@@ -32,10 +30,45 @@ jobs:
         env:
           NODE_ENV: production
 
+      # ─── 4. Generate Bundle Stats (Automatic & Escape-Proof) ───
+      - name: Generate Bundle Stats
+        working-directory: frontend
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          const walk = (dir) => {
+            let results = [];
+            try {
+              fs.readdirSync(dir, { withFileTypes: true }).forEach(e => {
+                const p = path.join(dir, e.name);
+                if (e.isDirectory()) results = results.concat(walk(p));
+                else {
+                  const ext = path.extname(e.name).toLowerCase();
+                  if (['.js', '.mjs', '.cjs', '.css'].includes(ext)) {
+                    results.push({
+                      name: path.relative('dist', p).split(path.sep).join('/'),
+                      size: fs.statSync(p).size
+                    });
+                  }
+                }
+              });
+            } catch (err) {}
+            return results;
+          };
+          const assets = walk('dist');
+          if (assets.length === 0) {
+            console.error('No bundle files found in dist/!');
+            process.exit(1);
+          }
+          fs.writeFileSync('dist/stats.json', JSON.stringify({ assets }, null, 2));
+          "
+
+      # ─── 5. Upload Stats ───
       - name: Upload Bundle Stats
         uses: actions/upload-artifact@v4
         with:
           name: bundle-stats
-          path: frontend/dist/stats.json   # Pointing directly to the frontend build output
+          path: frontend/dist/stats.json
           retention-days: 7
           if-no-files-found: warn
