@@ -378,6 +378,108 @@ def recommend_budgets(req: BudgetRecommendRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── Net Worth Analysis Models ───────────────────────────────────────────
+
+class NetWorthProjectRequest(BaseModel):
+    current_net_worth: float
+    monthly_savings: float = 0
+    annual_growth_rate: float = 8.0
+    years: int = 10
+
+class NetWorthProjectResponse(BaseModel):
+    projections: List[dict]
+    summary: dict
+
+@app.post("/networth/project", response_model=NetWorthProjectResponse)
+def project_net_worth(req: NetWorthProjectRequest):
+    try:
+        years = max(1, min(req.years, 50))
+        growth = req.annual_growth_rate / 100
+        monthly = req.monthly_savings
+        current = req.current_net_worth
+
+        projections = []
+        for y in range(1, years + 1):
+            # Compound growth + monthly contributions
+            balance = current
+            for m in range(12):
+                balance = balance * (1 + growth / 12) + monthly
+            current = balance
+            projections.append({
+                "year": y,
+                "netWorth": round(balance, 2),
+                "yearLabel": f"Year {y}"
+            })
+
+        summary = {
+            "starting": round(req.current_net_worth, 2),
+            "final": round(projections[-1]["netWorth"], 2) if projections else 0,
+            "totalContributed": round(req.monthly_savings * 12 * years, 2),
+            "growthEarned": round(projections[-1]["netWorth"] - req.current_net_worth - req.monthly_savings * 12 * years, 2) if projections else 0,
+            "yearsProjected": years
+        }
+        return NetWorthProjectResponse(projections=projections, summary=summary)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class NetWorthAnalyzeRequest(BaseModel):
+    assets: List[dict]
+    total_liabilities: float = 0
+
+class NetWorthAnalyzeResponse(BaseModel):
+    health_score: float
+    liquidity_ratio: float
+    diversification_score: float
+    recommendations: list
+
+@app.post("/networth/analyze", response_model=NetWorthAnalyzeResponse)
+def analyze_net_worth(req: NetWorthAnalyzeRequest):
+    try:
+        if not req.assets:
+            return NetWorthAnalyzeResponse(health_score=0, liquidity_ratio=0, diversification_score=0, recommendations=["No assets tracked."])
+
+        total = sum(a.get('value', 0) for a in req.assets)
+        if total == 0:
+            return NetWorthAnalyzeResponse(health_score=0, liquidity_ratio=0, diversification_score=0, recommendations=["No asset value detected."])
+
+        liquid = sum(a.get('value', 0) for a in req.assets if a.get('liquid'))
+        liquidity_ratio = round(liquid / total * 100, 1) if total > 0 else 0
+
+        # Calculate HHI for diversification
+        type_values = {}
+        for a in req.assets:
+            t = a.get('type', 'other')
+            type_values[t] = type_values.get(t, 0) + a.get('value', 0)
+        hhi = sum((v / total * 100) ** 2 for v in type_values.values())
+        diversification_score = round(max(0, min(100, 100 - hhi / 2)), 1)
+
+        # Health score components
+        liquid_score = min(30, liquidity_ratio * 2)
+        diversity_score = diversification_score * 0.4
+        liability_ratio = req.total_liabilities / total if total > 0 else 0
+        liability_score = max(0, 30 - liability_ratio * 100)
+        health_score = round(min(100, liquid_score + diversity_score + liability_score), 1)
+
+        recs = []
+        if liquidity_ratio < 15:
+            recs.append("Liquid assets are below 15%. Aim to keep 3-6 months of expenses in cash/bank accounts.")
+        if diversification_score < 40:
+            recs.append("Portfolio is concentrated. Consider diversifying across real estate, investments, and cash.")
+        if liability_ratio > 0.5:
+            recs.append("Liabilities exceed 50% of assets. Focus on debt reduction.")
+        if not recs:
+            recs.append("Healthy asset allocation. Continue building wealth with consistent savings.")
+        recs.append("Review and rebalance asset allocation annually.")
+
+        return NetWorthAnalyzeResponse(
+            health_score=health_score,
+            liquidity_ratio=liquidity_ratio,
+            diversification_score=diversification_score,
+            recommendations=recs
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == '__main__':
     import uvicorn
     port = int(os.environ.get('ML_PORT', 5050))
