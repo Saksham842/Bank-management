@@ -10,6 +10,7 @@ const recurringRoutes = require('./routes/recurring.routes');
 const aiRoutes = require('./routes/ai.routes');
 const nlpRoutes = require('./routes/nlp.routes');
 const reportRoutes = require('./routes/reports.routes');
+const retirementRoutes = require('./routes/retirement.routes');
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use('/api/recurring', recurringRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/nlp', nlpRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/retirement', retirementRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', time: new Date() });

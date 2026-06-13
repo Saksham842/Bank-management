@@ -71,6 +71,7 @@ import { Reports as ModularReports } from "./pages/Reports";
 import { BudgetPage as ModularBudgetPage } from "./pages/Budget";
 import { SubscriptionsPage as ModularSubscriptionsPage } from "./pages/Subscriptions";
 import { Settings as ModularSettings } from "./pages/Settings";
+import { RetirementPage as ModularRetirementPage } from "./pages/Retirement";
 import { Login as ModularLogin } from "./pages/Auth/Login";
 import { Register as ModularRegister } from "./pages/Auth/Register";
 import { AppContext } from "./AppContext";
