@@ -8,16 +8,16 @@ import {
 } from 'recharts';
 import {
   Calculator, TrendingUp, Target, PiggyBank, Plus, X,
-  ChevronRight, DollarSign, Calendar
+  ChevronRight, DollarSign, Calendar, BarChart3, Percent
 } from 'lucide-react';
 import {
   getGoals, createGoal, updateGoal, deleteGoal,
   calculateSIP, calculateLumpsum, calculateGoal, projectGoal
 } from '../api/sip.api';
 
-const TAB_KEYS = ['sip', 'lumpsum', 'stepup', 'goals'];
-const TAB_LABELS = ['SIP', 'Lumpsum', 'Step-Up SIP', 'Goals'];
-const TAB_ICONS = [TrendingUp, Calculator, PiggyBank, Target];
+const TAB_KEYS = ['sip', 'lumpsum', 'stepup', 'compare', 'goals'];
+const TAB_LABELS = ['SIP', 'Lumpsum', 'Step-Up SIP', 'Compare', 'Goals'];
+const TAB_ICONS = [TrendingUp, Calculator, PiggyBank, BarChart3, Target];
 
 const formatCurrency = (val) => {
   if (!val && val !== 0) return '';
@@ -43,6 +43,8 @@ export const SIPCalculatorPage = () => {
   const [lumpResult, setLumpResult] = useState(null);
   const [goalResult, setGoalResult] = useState(null);
   const [projections, setProjections] = useState({});
+  const [compareResult, setCompareResult] = useState(null);
+  const [compareParams, setCompareParams] = useState({ sipAmount: 5000, lumpsumAmount: 500000, tenureYears: 10, returnRate: 12, stepUpPct: 10 });
 
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
@@ -106,6 +108,32 @@ export const SIPCalculatorPage = () => {
     } catch { showToast('Projection failed', 'error'); }
   };
 
+  const runCompare = async () => {
+    try {
+      const { tenureYears, returnRate, sipAmount, lumpsumAmount, stepUpPct } = compareParams;
+      const mr = returnRate / 100 / 12;
+      const months = tenureYears * 12;
+
+      let sipCorpus = 0, sipTotal = 0;
+      for (let m = 1; m <= months; m++) { sipCorpus = sipCorpus * (1 + mr) + sipAmount; sipTotal += sipAmount; }
+
+      let stepCorpus = 0, stepTotal = 0, stepSip = sipAmount;
+      for (let m = 1; m <= months; m++) {
+        stepCorpus = stepCorpus * (1 + mr) + stepSip; stepTotal += stepSip;
+        if (m % 12 === 0) stepSip = stepSip * (1 + stepUpPct / 100);
+      }
+
+      const lumpCorpus = lumpsumAmount * Math.pow(1 + returnRate / 100, tenureYears);
+
+      setCompareResult({
+        sip: { corpus: Math.round(sipCorpus), invested: sipTotal, returns: Math.round(sipCorpus - sipTotal) },
+        stepup: { corpus: Math.round(stepCorpus), invested: stepTotal, returns: Math.round(stepCorpus - stepTotal) },
+        lumpsum: { corpus: Math.round(lumpCorpus), invested: lumpsumAmount, returns: Math.round(lumpCorpus - lumpsumAmount) },
+        tenureYears, returnRate, monthlySip: sipAmount
+      });
+    } catch { showToast('Comparison failed', 'error'); }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-6">
       <motion.div variants={container} initial="hidden" animate="show" className="max-w-7xl mx-auto">
@@ -155,20 +183,31 @@ export const SIPCalculatorPage = () => {
               </motion.div>
 
               {sipResult && (
-                <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Total Investment</div>
-                    <div className="text-2xl font-bold text-blue-400">{formatCurrency(sipResult.totalInvestment)}</div>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Expected Returns</div>
-                    <div className="text-2xl font-bold text-amber-400">{formatCurrency(sipResult.expectedReturns)}</div>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Final Corpus</div>
-                    <div className="text-2xl font-bold text-emerald-400">{formatCurrency(sipResult.finalCorpus)}</div>
-                  </div>
-                </motion.div>
+                <>
+                  <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Total Investment</div>
+                      <div className="text-2xl font-bold text-blue-400">{formatCurrency(sipResult.totalInvestment)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Expected Returns</div>
+                      <div className="text-2xl font-bold text-amber-400">{formatCurrency(sipResult.expectedReturns)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Final Corpus</div>
+                      <div className="text-2xl font-bold text-emerald-400">{formatCurrency(sipResult.finalCorpus)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">CAGR</div>
+                      <div className="text-2xl font-bold text-purple-400">{sipResult.returnRate}%</div>
+                    </div>
+                  </motion.div>
+                  <motion.div variants={item} className="bg-gray-700/50 rounded-lg p-3 text-sm text-gray-300 flex items-center justify-around">
+                    <span>Monthly: <strong className="text-white">{formatCurrency(sipResult.monthlyInvestment)}</strong></span>
+                    <span>Tenure: <strong className="text-white">{sipResult.tenureYears}y</strong></span>
+                    <span>Wealth Ratio: <strong className="text-emerald-400">{sipResult.finalCorpus > 0 ? ((sipResult.finalCorpus / sipResult.totalInvestment) * 100).toFixed(0) : 0}x</strong></span>
+                  </motion.div>
+                </>
               )}
 
               {sipResult?.yearlyBreakdown?.length > 0 && (
@@ -219,20 +258,30 @@ export const SIPCalculatorPage = () => {
               </motion.div>
 
               {lumpResult && (
-                <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Investment</div>
-                    <div className="text-2xl font-bold text-blue-400">{formatCurrency(lumpResult.investment)}</div>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Total Returns</div>
-                    <div className="text-2xl font-bold text-amber-400">{formatCurrency(lumpResult.totalReturns)}</div>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Final Value</div>
-                    <div className="text-2xl font-bold text-emerald-400">{formatCurrency(lumpResult.finalValue)}</div>
-                  </div>
-                </motion.div>
+                <>
+                  <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Investment</div>
+                      <div className="text-2xl font-bold text-blue-400">{formatCurrency(lumpResult.investment)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Total Returns</div>
+                      <div className="text-2xl font-bold text-amber-400">{formatCurrency(lumpResult.totalReturns)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Final Value</div>
+                      <div className="text-2xl font-bold text-emerald-400">{formatCurrency(lumpResult.finalValue)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">CAGR</div>
+                      <div className="text-2xl font-bold text-purple-400">{lumpResult.returnRate}%</div>
+                    </div>
+                  </motion.div>
+                  <motion.div variants={item} className="bg-gray-700/50 rounded-lg p-3 text-sm text-gray-300 flex items-center justify-around">
+                    <span>Tenure: <strong className="text-white">{lumpResult.tenureYears}y</strong></span>
+                    <span>Growth Multiple: <strong className="text-emerald-400">{lumpResult.investment > 0 ? (lumpResult.finalValue / lumpResult.investment).toFixed(1) : 0}x</strong></span>
+                  </motion.div>
+                </>
               )}
 
               {lumpResult?.yearlyBreakdown?.length > 0 && (
@@ -306,6 +355,101 @@ export const SIPCalculatorPage = () => {
             </motion.div>
           )}
 
+          {activeTab === 'compare' && (
+            <motion.div key="compare" variants={container} initial="hidden" animate="show" className="space-y-6">
+              <motion.div variants={item} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-lg font-semibold mb-4">Compare Investment Strategies</h3>
+                <p className="text-gray-400 text-sm mb-4">See how SIP, Step-Up SIP, and Lumpsum perform side by side</p>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div>
+                    <label className="text-gray-400 text-sm block mb-1">Monthly SIP (₹)</label>
+                    <input type="number" value={compareParams.sipAmount} onChange={e => setCompareParams(p => ({ ...p, sipAmount: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-sm block mb-1">Lumpsum (₹)</label>
+                    <input type="number" value={compareParams.lumpsumAmount} onChange={e => setCompareParams(p => ({ ...p, lumpsumAmount: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-sm block mb-1">Step-Up (%)</label>
+                    <input type="number" step="1" value={compareParams.stepUpPct} onChange={e => setCompareParams(p => ({ ...p, stepUpPct: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-sm block mb-1">Return (%)</label>
+                    <input type="number" step="0.5" value={compareParams.returnRate} onChange={e => setCompareParams(p => ({ ...p, returnRate: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-sm block mb-1">Tenure (Years)</label>
+                    <input type="number" value={compareParams.tenureYears} onChange={e => setCompareParams(p => ({ ...p, tenureYears: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                </div>
+                <button onClick={runCompare} className="mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg">Compare Now</button>
+              </motion.div>
+
+              {compareResult && (
+                <>
+                  <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className={`rounded-xl p-5 border ${compareResult.sip.corpus >= compareResult.stepup.corpus && compareResult.sip.corpus >= compareResult.lumpsum.corpus ? 'border-emerald-500 bg-emerald-900/20' : 'border-gray-700 bg-gray-800'}`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingUp className="w-5 h-5 text-blue-400" />
+                        <h4 className="font-semibold">Regular SIP</h4>
+                        {compareResult.sip.corpus >= compareResult.stepup.corpus && compareResult.sip.corpus >= compareResult.lumpsum.corpus && <span className="text-xs bg-emerald-600 px-2 py-0.5 rounded-full">Best</span>}
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between"><span className="text-gray-400">Invested</span><span>{formatCurrency(compareResult.sip.invested)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Returns</span><span className="text-amber-400">{formatCurrency(compareResult.sip.returns)}</span></div>
+                        <div className="flex justify-between text-base font-bold"><span className="text-gray-300">Corpus</span><span className="text-emerald-400">{formatCurrency(compareResult.sip.corpus)}</span></div>
+                      </div>
+                    </div>
+                    <div className={`rounded-xl p-5 border ${compareResult.stepup.corpus >= compareResult.sip.corpus && compareResult.stepup.corpus >= compareResult.lumpsum.corpus ? 'border-emerald-500 bg-emerald-900/20' : 'border-gray-700 bg-gray-800'}`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <PiggyBank className="w-5 h-5 text-purple-400" />
+                        <h4 className="font-semibold">Step-Up SIP</h4>
+                        {compareResult.stepup.corpus >= compareResult.sip.corpus && compareResult.stepup.corpus >= compareResult.lumpsum.corpus && <span className="text-xs bg-emerald-600 px-2 py-0.5 rounded-full">Best</span>}
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between"><span className="text-gray-400">Invested</span><span>{formatCurrency(compareResult.stepup.invested)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Returns</span><span className="text-amber-400">{formatCurrency(compareResult.stepup.returns)}</span></div>
+                        <div className="flex justify-between text-base font-bold"><span className="text-gray-300">Corpus</span><span className="text-emerald-400">{formatCurrency(compareResult.stepup.corpus)}</span></div>
+                      </div>
+                    </div>
+                    <div className={`rounded-xl p-5 border ${compareResult.lumpsum.corpus >= compareResult.sip.corpus && compareResult.lumpsum.corpus >= compareResult.stepup.corpus ? 'border-emerald-500 bg-emerald-900/20' : 'border-gray-700 bg-gray-800'}`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Calculator className="w-5 h-5 text-amber-400" />
+                        <h4 className="font-semibold">Lumpsum</h4>
+                        {compareResult.lumpsum.corpus >= compareResult.sip.corpus && compareResult.lumpsum.corpus >= compareResult.stepup.corpus && <span className="text-xs bg-emerald-600 px-2 py-0.5 rounded-full">Best</span>}
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between"><span className="text-gray-400">Invested</span><span>{formatCurrency(compareResult.lumpsum.invested)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Returns</span><span className="text-amber-400">{formatCurrency(compareResult.lumpsum.returns)}</span></div>
+                        <div className="flex justify-between text-base font-bold"><span className="text-gray-300">Corpus</span><span className="text-emerald-400">{formatCurrency(compareResult.lumpsum.corpus)}</span></div>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  <motion.div variants={item} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h4 className="font-semibold mb-4">Balance Over Time</h4>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={(() => { const d = []; for (let y = 1; y <= compareResult.tenureYears; y += Math.max(1, Math.floor(compareResult.tenureYears / 10))) d.push({ year: y, [compareResult.monthlySip ? 'Regular SIP' : 'SIP']: Math.round(compareResult.sip.corpus * y / compareResult.tenureYears), [compareResult.monthlySip * (1 + compareParams.stepUpPct / 100) ? 'Step-Up SIP' : 'Step-Up']: Math.round(compareResult.stepup.corpus * y / compareResult.tenureYears), Lumpsum: Math.round(compareResult.lumpsum.corpus * y / compareResult.tenureYears) }); d.push({ year: compareResult.tenureYears, [compareResult.monthlySip ? 'Regular SIP' : 'SIP']: compareResult.sip.corpus, 'Step-Up SIP': compareResult.stepup.corpus, Lumpsum: compareResult.lumpsum.corpus }); return d; })()}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="year" stroke="#9CA3AF" />
+                        <YAxis tickFormatter={v => '₹' + (v >= 100000 ? (v / 100000).toFixed(1) + 'L' : v)} stroke="#9CA3AF" />
+                        <Tooltip formatter={v => formatCurrency(v)} contentStyle={{ background: '#1F2937', border: '1px solid #374151', borderRadius: 8 }} />
+                        <Bar dataKey="Regular SIP" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Step-Up SIP" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Lumpsum" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </motion.div>
+                </>
+              )}
+            </motion.div>
+          )}
+
           {activeTab === 'goals' && (
             <motion.div key="goals" variants={container} initial="hidden" animate="show" className="space-y-6">
               <motion.div variants={item} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
@@ -341,24 +485,56 @@ export const SIPCalculatorPage = () => {
               </motion.div>
 
               {goalResult && (
-                <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Target Amount</div>
-                    <div className="text-xl font-bold">{formatCurrency(goalResult.targetAmount)}</div>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Inflation Adjusted</div>
-                    <div className="text-xl font-bold text-amber-400">{formatCurrency(goalResult.inflatedTarget)}</div>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Required Monthly SIP</div>
-                    <div className="text-xl font-bold text-emerald-400">{formatCurrency(goalResult.requiredMonthlySIP)}</div>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
-                    <div className="text-gray-400 text-xs mb-1">Time Remaining</div>
-                    <div className="text-xl font-bold text-purple-400">{goalResult.yearsRemaining}y</div>
-                  </div>
-                </motion.div>
+                <>
+                  <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Required SIP</div>
+                      <div className="text-xl font-bold text-emerald-400">{formatCurrency(goalResult.requiredSIP)}/mo</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Inflation-Adjusted Target</div>
+                      <div className="text-xl font-bold text-amber-400">{formatCurrency(goalResult.inflationAdjustedTarget)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Projected Corpus</div>
+                      <div className="text-xl font-bold text-blue-400">{formatCurrency(goalResult.projectedCorpus)}</div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
+                      <div className="text-gray-400 text-xs mb-1">Time Remaining</div>
+                      <div className="text-xl font-bold text-purple-400">{goalResult.yearsRemaining}y</div>
+                    </div>
+                  </motion.div>
+
+                  <motion.div variants={item} className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2"><Percent className="w-4 h-4 text-purple-400" /> Goal Simulator</h4>
+                    <p className="text-gray-400 text-xs mb-3">Adjust your monthly SIP to see how it impacts your goal timeline</p>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-gray-400 text-xs block mb-1">Monthly SIP: <strong className="text-white">{formatCurrency(goalResult.sipAmount)}</strong></label>
+                        <input type="range" min={Math.max(500, Math.round(goalResult.requiredSIP * 0.2 / 100) * 100)} max={Math.max(5000, Math.round(goalResult.requiredSIP * 3 / 100) * 100)} step={500}
+                          value={goalResult.sipAmount}
+                          onChange={e => {
+                            const newSip = parseInt(e.target.value);
+                            const cr = goalResult.cagr / 100;
+                            const mr = cr / 12;
+                            const months = Math.round(goalResult.yearsRemaining * 12);
+                            let corpus = 0;
+                            for (let m = 0; m < months; m++) corpus = corpus * (1 + mr) + newSip;
+                            corpus = Math.round(corpus);
+                            setGoalResult(g => ({ ...g, sipAmount: newSip, projectedCorpus: corpus, onTrack: corpus >= goalResult.inflationAdjustedTarget }));
+                          }}
+                          className="w-full accent-purple-600" />
+                      </div>
+                      <div className="text-right min-w-[120px]">
+                        <div className="text-xs text-gray-400">Projected</div>
+                        <div className={`text-lg font-bold ${goalResult.projectedCorpus >= goalResult.inflationAdjustedTarget ? 'text-emerald-400' : 'text-amber-400'}`}>{formatCurrency(goalResult.projectedCorpus)}</div>
+                        <div className={`text-xs ${goalResult.projectedCorpus >= goalResult.inflationAdjustedTarget ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {goalResult.projectedCorpus >= goalResult.inflationAdjustedTarget ? 'On Track' : `Short by ${formatCurrency(goalResult.inflationAdjustedTarget - goalResult.projectedCorpus)}`}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
               )}
 
               <motion.div variants={item} className="flex items-center justify-between">
