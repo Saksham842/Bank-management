@@ -1,0 +1,71 @@
+name: DeployGuard Bundle Stats
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main, master]
+
+jobs:
+  bundle-stats:
+    runs-on: ubuntu-latest
+    name: Upload bundle stats for DeployGuard
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build Vite App
+        working-directory: frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      # ─── 4. Generate Bundle Stats (Automatic, no configuration needed!) ───
+      - name: Generate Bundle Stats
+        working-directory: frontend
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          const walk = (dir) => {
+            let results = [];
+            try {
+              fs.readdirSync(dir, { withFileTypes: true }).forEach(e => {
+                const p = path.join(dir, e.name);
+                if (e.isDirectory()) results = results.concat(walk(p));
+                else if (/\.(js|mjs|cjs|css)$/i.test(e.name)) {
+                  results.push({
+                    name: path.relative('dist', p).replace(/\\/g, '/'),
+                    size: fs.statSync(p).size
+                  });
+                }
+              });
+            } catch (err) {}
+            return results;
+          };
+          const assets = walk('dist');
+          if (assets.length === 0) {
+            console.error('No bundle files found in dist/!');
+            process.exit(1);
+          }
+          fs.writeFileSync('dist/stats.json', JSON.stringify({ assets }, null, 2));
+          "
+
+      # ─── 5. Upload Stats ───
+      - name: Upload Bundle Stats
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-stats
+          path: frontend/dist/stats.json
+          retention-days: 7
+          if-no-files-found: warn
