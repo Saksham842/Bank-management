@@ -302,6 +302,81 @@ def predict_spending(req: PredictRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── Recurring Detection Model ────────────────────────────────────────────
+
+class RecurringDetectionRequest(BaseModel):
+    transactions: List[dict]
+
+class RecurringDetectionResponse(BaseModel):
+    recurring_groups: list
+    detected_count: int
+
+@app.post("/detect-recurring", response_model=RecurringDetectionResponse)
+def detect_recurring_ml(req: RecurringDetectionRequest):
+    try:
+        if not req.transactions or len(req.transactions) < 2:
+            return RecurringDetectionResponse(recurring_groups=[], detected_count=0)
+
+        from collections import defaultdict
+        import math
+
+        groups = defaultdict(list)
+        for tx in req.transactions:
+            desc = (tx.get('description') or tx.get('category') or '').lower().strip()[:30]
+            if desc:
+                groups[desc].append(tx)
+
+        recurring = []
+        for desc, group in groups.items():
+            if len(group) < 2: continue
+
+            dates = sorted([d["date"] for d in group])
+            amounts = [d["amount"] for d in group]
+            intervals = [(dates[i] - dates[i-1]).total_seconds() / 86400 for i in range(1, len(dates))]
+
+            avg_interval = sum(intervals) / len(intervals) if intervals else 0
+            std_dev = math.sqrt(sum((i - avg_interval)**2 for i in intervals) / len(intervals)) if intervals else 0
+            regularity = std_dev / (avg_interval or 1)
+
+            if regularity < 0.3 and avg_interval <= 35:
+                avg_amount = sum(amounts) / len(amounts)
+                from datetime import datetime, timedelta
+
+                cycle = 'monthly'
+                if avg_interval <= 10: cycle = 'weekly'
+                elif avg_interval <= 45: cycle = 'monthly'
+                elif avg_interval <= 100: cycle = 'quarterly'
+                else: cycle = 'annual'
+
+                last_dt = max(dates)
+                if isinstance(last_dt, str):
+                    last_dt = datetime.fromisoformat(last_dt)
+
+                if cycle == 'weekly': next_dt = last_dt + timedelta(days=7)
+                elif cycle == 'monthly': next_dt = last_dt + timedelta(days=30)
+                elif cycle == 'quarterly': next_dt = last_dt + timedelta(days=90)
+                else: next_dt = last_dt + timedelta(days=365)
+
+                recurring.append({
+                    "merchant": group[0].get('description', desc),
+                    "category": group[0].get('category', 'Other'),
+                    "avg_amount": round(avg_amount, 2),
+                    "confidence": round(1 - regularity, 3),
+                    "occurrences": len(group),
+                    "avg_interval_days": round(avg_interval, 1),
+                    "suggested_cycle": cycle,
+                    "next_billing": next_dt.strftime('%Y-%m-%d'),
+                    "recent_amounts": [round(a, 2) for a in amounts[-5:]],
+                })
+
+        recurring.sort(key=lambda r: -r['confidence'])
+        return RecurringDetectionResponse(
+            recurring_groups=recurring,
+            detected_count=len(recurring)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ─── Budget Recommendation Models ─────────────────────────────────────────
 
 class BudgetRecommendRequest(BaseModel):
@@ -378,104 +453,159 @@ def recommend_budgets(req: BudgetRecommendRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ─── Net Worth Analysis Models ───────────────────────────────────────────
+# ─── Forecast / Monte Carlo Models ───────────────────────────────────────
 
-class NetWorthProjectRequest(BaseModel):
-    current_net_worth: float
-    monthly_savings: float = 0
-    annual_growth_rate: float = 8.0
-    years: int = 10
+class ForecastRequest(BaseModel):
+    months: int = 12
+    avg_income: Optional[float] = None
+    avg_expense: Optional[float] = None
+    current_balance: Optional[float] = None
 
-class NetWorthProjectResponse(BaseModel):
-    projections: List[dict]
+class ForecastResponse(BaseModel):
+    predictions: List[dict]
     summary: dict
 
-@app.post("/networth/project", response_model=NetWorthProjectResponse)
-def project_net_worth(req: NetWorthProjectRequest):
+@app.post("/forecast/predict", response_model=ForecastResponse)
+def forecast_predict(req: ForecastRequest):
     try:
-        years = max(1, min(req.years, 50))
-        growth = req.annual_growth_rate / 100
-        monthly = req.monthly_savings
-        current = req.current_net_worth
+        months = max(1, min(req.months, 60))
+        avg_inc = req.avg_income or 50000
+        avg_exp = req.avg_expense or 35000
+        balance = req.current_balance or 0
 
-        projections = []
-        for y in range(1, years + 1):
-            # Compound growth + monthly contributions
-            balance = current
-            for m in range(12):
-                balance = balance * (1 + growth / 12) + monthly
-            current = balance
-            projections.append({
-                "year": y,
-                "netWorth": round(balance, 2),
-                "yearLabel": f"Year {y}"
+        predictions = []
+        running = balance
+        for i in range(months):
+            # Simple seasonal model: add some variation
+            season = 1 + 0.1 * np.sin(2 * np.pi * (i % 12) / 12)
+            inc = avg_inc * season
+            exp = avg_exp * (1 + 0.05 * np.sin(2 * np.pi * ((i + 6) % 12) / 12))
+            running += inc - exp
+            predictions.append({
+                "month": i + 1,
+                "income": round(inc, 2),
+                "expense": round(exp, 2),
+                "balance": round(running, 2)
             })
 
         summary = {
-            "starting": round(req.current_net_worth, 2),
-            "final": round(projections[-1]["netWorth"], 2) if projections else 0,
-            "totalContributed": round(req.monthly_savings * 12 * years, 2),
-            "growthEarned": round(projections[-1]["netWorth"] - req.current_net_worth - req.monthly_savings * 12 * years, 2) if projections else 0,
-            "yearsProjected": years
+            "starting_balance": round(balance, 2),
+            "projected_balance": round(running, 2),
+            "avg_income": round(avg_inc, 2),
+            "avg_expense": round(avg_exp, 2),
+            "months_projected": months,
+            "savings_rate": round((avg_inc - avg_exp) / avg_inc * 100, 1) if avg_inc > 0 else 0
         }
-        return NetWorthProjectResponse(projections=projections, summary=summary)
+        return ForecastResponse(predictions=predictions, summary=summary)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-class NetWorthAnalyzeRequest(BaseModel):
-    assets: List[dict]
-    total_liabilities: float = 0
+class MonteCarloRequest(BaseModel):
+    target_amount: float = 0
+    months: int = 12
+    simulations: int = 500
+    monthly_contribution: float = 0
+    current_balance: float = 0
+    expected_return: float = 8.0
+    volatility: float = 15.0
 
-class NetWorthAnalyzeResponse(BaseModel):
-    health_score: float
-    liquidity_ratio: float
-    diversification_score: float
-    recommendations: list
+class MonteCarloResponse(BaseModel):
+    bands: List[dict]
+    probability: float
+    median_final: float
+    target_amount: float
+    simulations_run: int
 
-@app.post("/networth/analyze", response_model=NetWorthAnalyzeResponse)
-def analyze_net_worth(req: NetWorthAnalyzeRequest):
+@app.post("/forecast/monte-carlo", response_model=MonteCarloResponse)
+def monte_carlo_ml(req: MonteCarloRequest):
     try:
-        if not req.assets:
-            return NetWorthAnalyzeResponse(health_score=0, liquidity_ratio=0, diversification_score=0, recommendations=["No assets tracked."])
+        num_sims = min(req.simulations, 2000)
+        num_months = max(1, min(req.months, 120))
+        target = req.target_amount
+        contribution = req.monthly_contribution
+        balance = req.current_balance
+        monthly_return = req.expected_return / 100 / 12
+        monthly_vol = req.volatility / 100 / np.sqrt(12)
 
-        total = sum(a.get('value', 0) for a in req.assets)
-        if total == 0:
-            return NetWorthAnalyzeResponse(health_score=0, liquidity_ratio=0, diversification_score=0, recommendations=["No asset value detected."])
+        paths = np.zeros((num_sims, num_months))
+        successes = 0
 
-        liquid = sum(a.get('value', 0) for a in req.assets if a.get('liquid'))
-        liquidity_ratio = round(liquid / total * 100, 1) if total > 0 else 0
+        for s in range(num_sims):
+            path_balance = balance
+            for m in range(num_months):
+                rand_return = monthly_return + monthly_vol * np.random.randn()
+                path_balance = path_balance * (1 + rand_return) + contribution
+                paths[s, m] = max(0, path_balance)
+            if path_balance >= target:
+                successes += 1
 
-        # Calculate HHI for diversification
-        type_values = {}
-        for a in req.assets:
-            t = a.get('type', 'other')
-            type_values[t] = type_values.get(t, 0) + a.get('value', 0)
-        hhi = sum((v / total * 100) ** 2 for v in type_values.values())
-        diversification_score = round(max(0, min(100, 100 - hhi / 2)), 1)
+        bands = []
+        for m in range(num_months):
+            sorted_vals = np.sort(paths[:, m])
+            bands.append({
+                "month": m + 1,
+                "p10": round(float(sorted_vals[int(num_sims * 0.1)]), 2),
+                "p25": round(float(sorted_vals[int(num_sims * 0.25)]), 2),
+                "p50": round(float(sorted_vals[int(num_sims * 0.5)]), 2),
+                "p75": round(float(sorted_vals[int(num_sims * 0.75)]), 2),
+                "p90": round(float(sorted_vals[int(num_sims * 0.9)]), 2),
+            })
 
-        # Health score components
-        liquid_score = min(30, liquidity_ratio * 2)
-        diversity_score = diversification_score * 0.4
-        liability_ratio = req.total_liabilities / total if total > 0 else 0
-        liability_score = max(0, 30 - liability_ratio * 100)
-        health_score = round(min(100, liquid_score + diversity_score + liability_score), 1)
+        return MonteCarloResponse(
+            bands=bands,
+            probability=round(successes / num_sims * 100, 1),
+            median_final=round(float(np.median(paths[:, -1])), 2),
+            target_amount=target,
+            simulations_run=num_sims
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        recs = []
-        if liquidity_ratio < 15:
-            recs.append("Liquid assets are below 15%. Aim to keep 3-6 months of expenses in cash/bank accounts.")
-        if diversification_score < 40:
-            recs.append("Portfolio is concentrated. Consider diversifying across real estate, investments, and cash.")
-        if liability_ratio > 0.5:
-            recs.append("Liabilities exceed 50% of assets. Focus on debt reduction.")
-        if not recs:
-            recs.append("Healthy asset allocation. Continue building wealth with consistent savings.")
-        recs.append("Review and rebalance asset allocation annually.")
+class FIRequest(BaseModel):
+    monthly_expense: float
+    current_savings: float = 0
+    monthly_savings: float = 0
+    expected_return: float = 8.0
 
-        return NetWorthAnalyzeResponse(
-            health_score=health_score,
-            liquidity_ratio=liquidity_ratio,
-            diversification_score=diversification_score,
-            recommendations=recs
+class FIResponse(BaseModel):
+    fi_number: float
+    years_to_fi: float
+    milestones: list
+    progress_pct: float
+
+@app.post("/forecast/fire", response_model=FIResponse)
+def fire_calculator(req: FIRequest):
+    try:
+        withdrawal_rate = 0.04
+        monthly_exp = max(1, req.monthly_expense)
+        fi_number = monthly_exp * 12 / withdrawal_rate
+        savings = req.current_savings
+        monthly_save = req.monthly_savings
+        annual_return = req.expected_return / 100
+
+        if monthly_save > 0 and fi_number > savings:
+            years = 0
+            while savings < fi_number and years < 100:
+                savings = savings * (1 + annual_return) + monthly_save * 12
+                years += 1
+            years_to_fi = years
+        else:
+            years_to_fi = 0 if savings >= fi_number else 99
+
+        milestones = [
+            {"label": "25% FI", "amount": round(fi_number * 0.25, 2)},
+            {"label": "50% FI", "amount": round(fi_number * 0.5, 2)},
+            {"label": "75% FI", "amount": round(fi_number * 0.75, 2)},
+            {"label": "100% FI", "amount": round(fi_number, 2)},
+        ]
+
+        progress_pct = round(min(100, req.current_savings / fi_number * 100), 1) if fi_number > 0 else 0
+
+        return FIResponse(
+            fi_number=round(fi_number, 2),
+            years_to_fi=round(years_to_fi, 1),
+            milestones=milestones,
+            progress_pct=progress_pct
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
